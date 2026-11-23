@@ -1,0 +1,51 @@
+name: Build Glubina IPA
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Unpack project archive
+        run: |
+          ARCHIVE=$(ls -1 *.zip | head -n 1)
+          echo "Unpacking: $ARCHIVE"
+          unzip -o "$ARCHIVE" -x ".github/*"
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Build unsigned Release .app
+        run: |
+          xcodebuild \
+            -project Glubina.xcodeproj \
+            -scheme Glubina \
+            -configuration Release \
+            -sdk iphoneos \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            clean build
+
+      - name: Package unsigned IPA
+        run: |
+          mkdir -p Payload
+          cp -r build/Build/Products/Release-iphoneos/Glubina.app Payload/Glubina.app
+          zip -r Glubina-unsigned.ipa Payload
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Glubina-unsigned-ipa
+          path: Glubina-unsigned.ipa
